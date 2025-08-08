@@ -37,32 +37,32 @@ app.post('/generate', async (req, res) => {
 
     // Zoom fixe, pan horizontal milieu gauche → milieu droite, crop 720x1280, sans étirement
     // zoompan avec x calculé pour faire un pan horizontal sur la portion zoomée de l'image
-    const zoompanFilter = `zoompan=z=${zoom}:x='iw/2-(iw/zoom/2)+(on/(d-1))*((iw/zoom)-720)':y='ih/2-(ih/zoom/2)':d=${duration * fps}:s=720x1280,framerate=${fps}`;
+    const zoompanFilter = `zoompan=z=${zoom}:x="iw/2-(iw/${zoom}/2)+(on/(d-1))*((iw/${zoom})-720)":y="ih/2-(ih/${zoom}/2)":d=${duration * fps}:s=720x1280,framerate=${fps}`;
 
-    // Générer la vidéo
-    await new Promise((resolve, reject) => {
-      ffmpeg(imagePath)
-        .outputOptions([
-          '-vf', zoompanFilter,
-          '-c:v libx264',
-          '-pix_fmt yuv420p',
-        ])
-        .on('start', cmd => console.log('Commande FFmpeg :', cmd))
-        .on('progress', progress => {
-          if (progress.percent) {
-            process.stdout.write(`\rProgression : ${progress.percent.toFixed(1)}%`);
-          }
-        })
-        .on('end', () => {
-          console.log('\n✅ Vidéo générée avec succès !');
-          resolve();
-        })
-        .on('error', err => {
-          console.error('Erreur FFmpeg :', err.message);
-          reject(err);
-        })
-        .save(videoPath);
-    });
+await new Promise((resolve, reject) => {
+  ffmpeg(imagePath)
+    .outputOptions([
+      '-vf', zoompanFilter,
+      '-c:v libx264',
+      '-pix_fmt yuv420p',
+    ])
+    .on('start', cmd => console.log('Commande FFmpeg :', cmd))
+    .on('progress', progress => {
+      if (progress.percent) {
+        process.stdout.write(`\rProgression : ${progress.percent.toFixed(1)}%`);
+      }
+    })
+    .on('end', () => {
+      console.log('\n✅ Vidéo générée avec succès !');
+      resolve();
+    })
+    .on('error', err => {
+      console.error('Erreur FFmpeg :', err.message);
+      reject(err);
+    })
+    .save(videoPath);
+});
+
 
     // Supprimer l’image téléchargée
     await fsPromises.unlink(imagePath);
