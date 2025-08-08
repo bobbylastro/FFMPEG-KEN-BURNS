@@ -12,6 +12,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const TMP_DIR = path.join(__dirname, 'tmp');
 
+// Création du dossier tmp si besoin
 if (!fs.existsSync(TMP_DIR)) {
   fs.mkdirSync(TMP_DIR, { recursive: true });
 }
@@ -30,44 +31,48 @@ app.post('/generate', async (req, res) => {
     const buffer = await response.buffer();
     await fsPromises.writeFile(imagePath, buffer);
 
-    // Paramètres FFmpeg
-    const duration = 4; // secondes
+    // Paramètres vidéo
+    const duration = 4; // en secondes
     const fps = 30;
     const zoom = 1.5;
 
-    // Zoom fixe, pan horizontal milieu gauche → milieu droite, crop 720x1280, sans étirement
-    // zoompan avec x calculé pour faire un pan horizontal sur la portion zoomée de l'image
-    const zoompanFilter = `zoompan=z=${zoom}:x="iw/2-(iw/${zoom}/2)+(on/(d-1))*((iw/${zoom})-720)":y="ih/2-(ih/${zoom}/2)":d=${duration * fps}:s=720x1280,framerate=${fps}`;
+    // Filtre FFmpeg : on redimensionne d'abord l'image à 1280x1280 pour avoir assez de pixels
+    // puis zoompan avec pan horizontal de gauche à droite avec crop 720x1280
+    const ffmpegFilter = [
+      'scale=1280:1280',
+      `zoompan=z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(d-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${duration * fps}:s=720x1280`,
+      `framerate=${fps}`
+    ].join(',');
 
-await new Promise((resolve, reject) => {
-  ffmpeg(imagePath)
-    .outputOptions([
-      '-vf', zoompanFilter,
-      '-c:v libx264',
-      '-pix_fmt yuv420p',
-    ])
-    .on('start', cmd => console.log('Commande FFmpeg :', cmd))
-    .on('progress', progress => {
-      if (progress.percent) {
-        process.stdout.write(`\rProgression : ${progress.percent.toFixed(1)}%`);
-      }
-    })
-    .on('end', () => {
-      console.log('\n✅ Vidéo générée avec succès !');
-      resolve();
-    })
-    .on('error', err => {
-      console.error('Erreur FFmpeg :', err.message);
-      reject(err);
-    })
-    .save(videoPath);
-});
-
+    await new Promise((resolve, reject) => {
+      ffmpeg(imagePath)
+        .outputOptions([
+          '-vf', ffmpegFilter,
+          '-c:v', 'libx264',
+          '-pix_fmt', 'yuv420p',
+          '-t', duration.toString()
+        ])
+        .on('start', cmd => console.log('Commande FFmpeg :', cmd))
+        .on('progress', progress => {
+          if (progress.percent) {
+            process.stdout.write(`\rProgression : ${progress.percent.toFixed(1)}%`);
+          }
+        })
+        .on('end', () => {
+          console.log('\n✅ Vidéo générée avec succès !');
+          resolve();
+        })
+        .on('error', err => {
+          console.error('Erreur FFmpeg :', err.message);
+          reject(err);
+        })
+        .save(videoPath);
+    });
 
     // Supprimer l’image téléchargée
     await fsPromises.unlink(imagePath);
 
-    // Répondre avec le chemin relatif (à adapter si besoin)
+    // Répondre avec le chemin relatif (à adapter selon ton hébergement)
     res.json({
       message: 'Vidéo générée avec succès',
       videoUrl: `/videos/${path.basename(videoPath)}`,
@@ -80,7 +85,7 @@ await new Promise((resolve, reject) => {
   }
 });
 
-// Servir les vidéos du dossier tmp (juste pour test)
+// Servir les vidéos depuis tmp (juste pour test)
 app.use('/videos', express.static(TMP_DIR));
 
 app.listen(PORT, () => {
