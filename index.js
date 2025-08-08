@@ -87,4 +87,5 @@ app.post('/generate', async (req, res) => {
 app.use('/videos', express.static(TMP_DIR));
 
 app.listen(PORT, () => {
-  console.log(`Serveur démarré sur le
+  console.log(`Serveur démarré sur le port ${PORT}`);
+});
