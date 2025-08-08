@@ -34,7 +34,9 @@ app.post('/generate', async (req, res) => {
     const duration = 4; // secondes
     const fps = 30;
     const zoom = 1.5;
-    const zoompanFilter = `zoompan=z=${zoom}:x='(iw-ow)*on/(${duration * fps})':y='(ih-oh)/2':d=${duration * fps}:s=720x1280,framerate=${fps}`;
+
+    // Zoom progressif centré, crop 720x1280
+    const zoompanFilter = `zoompan=z='min(${zoom},zoom+0.001)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${duration * fps}:s=720x1280,framerate=${fps}`;
 
     // Générer la vidéo
     await new Promise((resolve, reject) => {
@@ -72,7 +74,6 @@ app.post('/generate', async (req, res) => {
 
   } catch (err) {
     console.error('Erreur générale:', err);
-    // Tenter de nettoyer l’image si elle existe
     try { await fsPromises.unlink(imagePath); } catch {}
     res.status(500).json({ error: err.message });
   }
