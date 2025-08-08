@@ -36,9 +36,13 @@ app.post('/generate', async (req, res) => {
     const zoom = 1.5;
     const totalFrames = duration * fps;
 
-    // Filtre FFmpeg : zoom fixe, pan horizontal, crop sans redimensionnement
-    const ffmpegFilter = `zoompan=z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${totalFrames},crop=720:1280`;
-
+  // Filtre FFmpeg :
+  const ffmpegFilter = [
+    'scale=-2:1280',
+    `zoompan=fps=${fps}:z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${totalFrames}`,
+    'crop=720:1280'
+  ].join(',');
+    
     await new Promise((resolve, reject) => {
       ffmpeg(imagePath)
         .outputOptions([
