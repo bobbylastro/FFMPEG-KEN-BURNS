@@ -1,6 +1,6 @@
 const express = require('express');
 const ffmpeg = require('fluent-ffmpeg');
-const fetch = require('node-fetch'); // node-fetch@2
+const fetch = require('node-fetch'); // v2
 const fs = require('fs');
 const fsPromises = require('fs').promises;
 const path = require('path');
@@ -12,7 +12,6 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const TMP_DIR = path.join(__dirname, 'tmp');
 
-// Création du dossier tmp si besoin
 if (!fs.existsSync(TMP_DIR)) {
   fs.mkdirSync(TMP_DIR, { recursive: true });
 }
@@ -32,16 +31,18 @@ app.post('/generate', async (req, res) => {
     await fsPromises.writeFile(imagePath, buffer);
 
     // Paramètres vidéo
-    const duration = 4; // en secondes
+    const duration = 4; // secondes
     const fps = 30;
     const zoom = 1.5;
+    const totalFrames = duration * fps;
 
-    // Filtre FFmpeg : on redimensionne d'abord l'image à 1280x1280 pour avoir assez de pixels
-    // puis zoompan avec pan horizontal de gauche à droite avec crop 720x1280
+    // Pipeline FFmpeg :
+    // 1. Redimensionne l'image à 1280x1280 (pour bien couvrir la hauteur TikTok).
+    // 2. Applique un zoom fixe et un pan horizontal de gauche à droite sur la portion zoomée.
+    // 3. Crop final en 720x1280.
     const ffmpegFilter = [
       'scale=1280:1280',
-      `zoompan=z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(d-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${duration * fps}:s=720x1280`,
-      `framerate=${fps}`
+      `zoompan=fps=${fps}:z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${totalFrames}:s=720x1280`
     ].join(',');
 
     await new Promise((resolve, reject) => {
@@ -50,9 +51,10 @@ app.post('/generate', async (req, res) => {
           '-vf', ffmpegFilter,
           '-c:v', 'libx264',
           '-pix_fmt', 'yuv420p',
-          '-t', duration.toString()
+          '-t', duration.toString(),
+          '-movflags', '+faststart' // pour une lecture progressive web
         ])
-        .on('start', cmd => console.log('Commande FFmpeg :', cmd))
+        .on('start', cmd => console.log('Commande FFmpeg:', cmd))
         .on('progress', progress => {
           if (progress.percent) {
             process.stdout.write(`\rProgression : ${progress.percent.toFixed(1)}%`);
@@ -69,23 +71,25 @@ app.post('/generate', async (req, res) => {
         .save(videoPath);
     });
 
-    // Supprimer l’image téléchargée
+    // Supprimer l’image temporaire
     await fsPromises.unlink(imagePath);
 
-    // Répondre avec le chemin relatif (à adapter selon ton hébergement)
+    // Répondre avec l'URL pour accéder à la vidéo (adapter selon ton hébergement)
     res.json({
       message: 'Vidéo générée avec succès',
-      videoUrl: `/videos/${path.basename(videoPath)}`,
+      videoUrl: `/videos/${path.basename(videoPath)}`
     });
 
   } catch (err) {
     console.error('Erreur générale:', err);
-    try { await fsPromises.unlink(imagePath); } catch {}
+    try {
+      if (fs.existsSync(imagePath)) await fsPromises.unlink(imagePath);
+    } catch {}
     res.status(500).json({ error: err.message });
   }
 });
 
-// Servir les vidéos depuis tmp (juste pour test)
+// Servir les vidéos statiques du dossier tmp (juste pour test)
 app.use('/videos', express.static(TMP_DIR));
 
 app.listen(PORT, () => {
