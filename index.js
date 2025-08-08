@@ -37,11 +37,13 @@ app.post('/generate', async (req, res) => {
     const totalFrames = duration * fps;
 
   // Filtre FFmpeg :
-  const ffmpegFilter = [
-    'scale=-2:1280',
-    `zoompan=fps=${fps}:z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${totalFrames}`,
-    'crop=720:1280'
-  ].join(',');
+const ffmpegFilter = [
+  'scale=-2:1280',
+  `zoompan=fps=${fps}:z=${zoom}:` +
+  `x='if(lte(iw/${zoom},720),0,min(max(iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720),0),iw-720))':` +
+  `y='ih/2-(ih/${zoom}/2)':d=${totalFrames}`,
+  'crop=720:1280'
+].join(',');
     
     await new Promise((resolve, reject) => {
       ffmpeg(imagePath)
