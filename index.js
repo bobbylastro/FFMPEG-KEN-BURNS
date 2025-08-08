@@ -35,8 +35,8 @@ app.post('/generate', async (req, res) => {
     const fps = 30;
     const zoom = 1.5;
 
-    // Zoom progressif centré, crop 720x1280
-    const zoompanFilter = `zoompan=z='min(${zoom},zoom+0.001)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${duration * fps}:s=720x1280,framerate=${fps}`;
+    // Pan horizontal du centre gauche au centre droit, zoom fixe, crop 720x1280
+    const zoompanFilter = `zoompan=z=${zoom}:x='iw/2-(iw/zoom/2)+(on/(d-1))*((iw/zoom)-720)':y='ih/2-(ih/zoom/2)':d=${duration*fps}:s=720x1280,framerate=${fps}`;
 
     // Générer la vidéo
     await new Promise((resolve, reject) => {
@@ -68,9 +68,9 @@ app.post('/generate', async (req, res) => {
 
     // Répondre avec l’URL (temporaire)
     res.json({
-      message: 'Vidéo générée avec succès',
-      videoUrl: `https://ffmpeg-ken-burns.onrender.com/videos/${path.basename(videoPath)}`,
-    });
+  message: 'Vidéo générée avec succès',
+  videoUrl: `https://ffmpeg-ken-burns.onrender.com/videos/${path.basename(videoPath)}`,
+  });
 
   } catch (err) {
     console.error('Erreur générale:', err);
