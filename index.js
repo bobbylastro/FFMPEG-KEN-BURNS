@@ -1,7 +1,8 @@
 const express = require('express');
 const ffmpeg = require('fluent-ffmpeg');
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // Assure-toi que c'est la v2 installée (npm install node-fetch@2)
 const fs = require('fs');
+const fsPromises = require('fs').promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
@@ -12,7 +13,9 @@ const PORT = process.env.PORT || 3000;
 const TMP_DIR = path.join(__dirname, 'tmp');
 
 // Crée le dossier tmp s’il n’existe pas
-if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR);
+if (!fs.existsSync(TMP_DIR)) {
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+}
 
 app.post('/generate', async (req, res) => {
   const { imageUrl } = req.body;
@@ -26,7 +29,7 @@ app.post('/generate', async (req, res) => {
     const response = await fetch(imageUrl);
     if (!response.ok) throw new Error('Erreur téléchargement image');
     const buffer = await response.buffer();
-    fs.writeFileSync(imagePath, buffer);
+    await fsPromises.writeFile(imagePath, buffer);
 
     // 2. Paramètres FFmpeg
     const duration = 4; // secondes
@@ -42,30 +45,37 @@ app.post('/generate', async (req, res) => {
           '-c:v libx264',
           '-pix_fmt yuv420p',
         ])
-        .on('end', resolve)
-        .on('error', reject)
+        .on('start', cmd => console.log('Commande FFmpeg :', cmd))
+        .on('progress', progress => {
+          if (progress.percent) {
+            process.stdout.write(`\rProgression : ${progress.percent.toFixed(1)}%`);
+          }
+        })
+        .on('end', () => {
+          console.log('\n✅ Vidéo générée avec succès !');
+          resolve();
+        })
+        .on('error', (err) => {
+          console.error('Erreur FFmpeg :', err.message);
+          reject(err);
+        })
         .save(videoPath);
     });
 
-    // 4. Ici il faudrait uploader la vidéo vers un service de stockage (ex: Cloudinary, S3)
-    // Pour l’exemple, on renvoie juste le chemin local (pas accessible publiquement)
-    // Tu devras adapter cette partie pour uploader la vidéo et renvoyer une URL publique.
-
+    // 4. Réponse avec chemin relatif (à adapter pour stockage externe)
     res.json({
       message: 'Vidéo générée avec succès',
-      videoUrl: `/videos/${path.basename(videoPath)}`, // temporaire
+      videoUrl: `/videos/${path.basename(videoPath)}`, // temporaire, pas accessible en prod
     });
 
-    // Nettoyage possible des fichiers après un certain temps...
-
   } catch (err) {
-    console.error(err);
+    console.error('Erreur générale:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Optionnel : servir les vidéos générées (juste pour test, pas recommandé en prod)
-app.use('/videos', express.static(path.join(__dirname, 'tmp')));
+// Sert les vidéos du dossier tmp (temporaire, juste pour test)
+app.use('/videos', express.static(TMP_DIR));
 
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
