@@ -36,13 +36,8 @@ app.post('/generate', async (req, res) => {
     const zoom = 1.5;
     const totalFrames = duration * fps;
 
-    // Filtre FFmpeg corrigé :
-    // - scale=-1:1280 → redimensionne en gardant le ratio, hauteur = 1280 px
-    // - zoompan avec fps, zoom fixe, pan horizontal, crop 720x1280
-    const ffmpegFilter = [
-      'scale=-1:1280',
-      `zoompan=fps=${fps}:z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${totalFrames}:s=720x1280`
-    ].join(',');
+    // Filtre FFmpeg : zoom fixe, pan horizontal, crop sans redimensionnement
+    const ffmpegFilter = `zoompan=z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${totalFrames},crop=720:1280`;
 
     await new Promise((resolve, reject) => {
       ffmpeg(imagePath)
@@ -92,5 +87,4 @@ app.post('/generate', async (req, res) => {
 app.use('/videos', express.static(TMP_DIR));
 
 app.listen(PORT, () => {
-  console.log(`Serveur démarré sur le port ${PORT}`);
-});
+  console.log(`Serveur démarré sur le
