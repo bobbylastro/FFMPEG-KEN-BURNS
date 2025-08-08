@@ -36,12 +36,11 @@ app.post('/generate', async (req, res) => {
     const zoom = 1.5;
     const totalFrames = duration * fps;
 
-    // Pipeline FFmpeg :
-    // 1. Redimensionne l'image à 1280x1280 (pour bien couvrir la hauteur TikTok).
-    // 2. Applique un zoom fixe et un pan horizontal de gauche à droite sur la portion zoomée.
-    // 3. Crop final en 720x1280.
+    // Filtre FFmpeg corrigé :
+    // - scale=-1:1280 → redimensionne en gardant le ratio, hauteur = 1280 px
+    // - zoompan avec fps, zoom fixe, pan horizontal, crop 720x1280
     const ffmpegFilter = [
-      'scale=1280:1280',
+      'scale=-1:1280',
       `zoompan=fps=${fps}:z=${zoom}:x='iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720)':y='ih/2-(ih/${zoom}/2)':d=${totalFrames}:s=720x1280`
     ].join(',');
 
@@ -52,7 +51,7 @@ app.post('/generate', async (req, res) => {
           '-c:v', 'libx264',
           '-pix_fmt', 'yuv420p',
           '-t', duration.toString(),
-          '-movflags', '+faststart' // pour une lecture progressive web
+          '-movflags', '+faststart' // lecture progressive web
         ])
         .on('start', cmd => console.log('Commande FFmpeg:', cmd))
         .on('progress', progress => {
