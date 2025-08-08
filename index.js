@@ -69,7 +69,7 @@ app.post('/generate', async (req, res) => {
     // Répondre avec l’URL (temporaire)
     res.json({
       message: 'Vidéo générée avec succès',
-      videoUrl: `/videos/${path.basename(videoPath)}`,
+      videoUrl: `https://ffmpeg-ken-burns.onrender.com/videos/${path.basename(videoPath)}`,
     });
 
   } catch (err) {
