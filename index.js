@@ -5,6 +5,7 @@ const fs = require('fs');
 const fsPromises = require('fs').promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const sizeOf = require('image-size'); // npm install image-size
 
 const app = express();
 app.use(express.json());
@@ -30,22 +31,31 @@ app.post('/generate', async (req, res) => {
     const buffer = await response.buffer();
     await fsPromises.writeFile(imagePath, buffer);
 
+    // Lire les dimensions de l'image
+    const dimensions = sizeOf(imagePath);
+    const originalWidth = dimensions.width;
+    const originalHeight = dimensions.height;
+
     // Paramètres vidéo
     const duration = 4; // secondes
     const fps = 30;
     const zoom = 1.5;
     const totalFrames = duration * fps;
 
-  // Filtre FFmpeg :
-const ffmpegFilter = [
-  'scale=-2:1280',
-  `zoompan=fps=${fps}:z=${zoom}:` +
-  `x='if(lte(iw/${zoom},720),0,` + // si image zoomée trop petite, x=0
-  `min(max(iw/2-(iw/${zoom}/2)+(on/(${totalFrames}-1))*((iw/${zoom})-720),0),iw-720))':` +
-  `y='ih/2-(ih/${zoom}/2)':d=${totalFrames}`,
-  'crop=720:1280'
-].join(',');
-    
+    // Calcul de la largeur redimensionnée en gardant la hauteur 1280
+    const targetHeight = 1280;
+    const scaleRatio = targetHeight / originalHeight;
+    const scaledWidth = Math.round(originalWidth * scaleRatio);
+
+    // Calcul du déplacement max horizontal possible (pour panning)
+    const maxPanX = Math.max(scaledWidth - 720, 0);
+
+    // Construire le filtre FFmpeg avec valeurs fixes
+    const ffmpegFilter = [
+      `scale=${scaledWidth}:${targetHeight}`,
+      `zoompan=fps=${fps}:z=1.0:x='if(lte(on,${totalFrames - 1}), on*${maxPanX}/${totalFrames - 1}, ${maxPanX})':y=0:d=${totalFrames}:s=720x1280`
+    ].join(',');
+
     await new Promise((resolve, reject) => {
       ffmpeg(imagePath)
         .outputOptions([
